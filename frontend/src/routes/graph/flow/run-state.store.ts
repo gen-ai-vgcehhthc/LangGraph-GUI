@@ -35,10 +35,18 @@ export const inputRequest = writable<InputRequest | null>(null);
 // Whether the result panel is open
 export const resultPanelOpen = writable<boolean>(false);
 
+// Per-node output collected during the last run (keyed by node ID)
+export const nodeOutputs = writable<Record<string, string>>({});
+
+// Which node's output modal is currently open (null = closed)
+export const viewingNodeId = writable<string | null>(null);
+
 export function resetExec() {
 	clearRunningNodes();
 	execStatus.set('idle');
 	execResult.set('');
 	inputRequest.set(null);
 	resultPanelOpen.set(false);
+	nodeOutputs.set({});
+	viewingNodeId.set(null);
 }

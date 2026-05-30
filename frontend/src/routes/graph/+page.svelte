@@ -10,6 +10,7 @@
 	import RunStatusBar from './menu/RunStatusBar.svelte';
 	import ResultPanel from './menu/ResultPanel.svelte';
 	import InputOverlay from './menu/InputOverlay.svelte';
+	import NodeOutputModal from './menu/NodeOutputModal.svelte';
 
 	import { openSidebar } from './menu/menu.store';
 	import { currentNodes, currentEdges } from './flow/graphs.store.svelte';
@@ -33,6 +34,7 @@
 <RunStatusBar />
 <ResultPanel />
 <InputOverlay />
+<NodeOutputModal />
 
 <div class="content-wrapper" style="transform: translateX({contentOffset}px)">
 	<div class="panel-container">

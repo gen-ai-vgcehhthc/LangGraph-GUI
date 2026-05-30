@@ -7,7 +7,7 @@
 	import type { NodeLLMConfig } from './node-schema';
 	import { openCrewDesigner } from './graphs-algo.svelte';
 	import { llmProvider, llmModel, apiKey } from '../menu/menu.store';
-	import { runningNodeIds } from './run-state.store';
+	import { runningNodeIds, nodeOutputs, viewingNodeId } from './run-state.store';
 	import { get } from 'svelte/store';
 
 	let { id, data, selected, width, height }: NodeProps = $props();
@@ -60,6 +60,9 @@
 
 	// Running state — true while this node is executing on the backend
 	let isRunning = $derived($runningNodeIds.has(id));
+
+	// Whether this node has recorded output from the last run
+	let hasOutput = $derived(!!$nodeOutputs[id]);
 
 	// hint showing global default in the dropdown
 	let globalHint = $derived(
@@ -264,5 +267,16 @@
 				{/if}
 			{/if}
 		</div>
+	{/if}
+
+	<!-- "View" button — shown after a run when this node has recorded output -->
+	{#if hasOutput}
+		<button
+			class="mt-1.5 w-full rounded border border-indigo-200 bg-indigo-50 py-1 text-xs
+			       font-semibold text-indigo-700 hover:bg-indigo-100 active:bg-indigo-200"
+			onclick={() => viewingNodeId.set(id)}
+		>
+			👁 View Output
+		</button>
 	{/if}
 </div>
