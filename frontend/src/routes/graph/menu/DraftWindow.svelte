@@ -3,8 +3,8 @@
 <script lang="ts">
 	import { get } from 'svelte/store';
 	import { username, llmModel, apiKey } from './menu.store';
-	import { JsonToGraphs, CleanGraphs } from '../flow/graphs-algo.svelte';
-	import { graphs } from '../flow/graphs.store.svelte';
+	import { JsonToGraphs } from '../flow/graphs-algo.svelte';
+	import { graphs, serial_number, usingSubgraph } from '../flow/graphs.store.svelte';
 
 	let { open = $bindable(false) } = $props();
 
@@ -36,9 +36,12 @@
 			}
 
 			const workflowArray = await res.json();
-			// Replace the current graph with the generated one
-			CleanGraphs();
-			graphs.set(JsonToGraphs(workflowArray));
+			// JsonToGraphs returns { graphs: Record<string,FlowNode[]>, nextSerialId }
+			// — set all three stores atomically so the canvas re-renders correctly.
+			const { graphs: newGraphs, nextSerialId } = JsonToGraphs(workflowArray);
+			graphs.set(newGraphs);
+			serial_number.set(nextSerialId);
+			usingSubgraph.set('root');
 			open = false;
 			prompt = '';
 		} catch (err) {
