@@ -5,7 +5,6 @@ import re
 from collections import defaultdict, deque
 from typing import Any, Dict, List
 
-from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
 from util import logger
@@ -68,9 +67,8 @@ Layout will be computed server-side.
 ]}]
 
 Now generate a workflow for the following request:
-
-{user_prompt}
-"""
+"""   # user_prompt is appended at call time — kept out of the constant to avoid
+      # PromptTemplate parsing the JSON examples as f-string placeholders.
 
 # ---------------------------------------------------------------------------
 # Auto-layout: BFS level assignment → evenly spaced positions
@@ -147,9 +145,13 @@ def auto_layout(nodes: List[Dict]) -> List[Dict]:
 
 def generate_draft(user_prompt: str, llm) -> List[Dict[str, Any]]:
     """Call the LLM to generate a workflow, then auto-layout the nodes."""
-    prompt = PromptTemplate.from_template(DRAFT_SYSTEM_PROMPT)
-    chain = prompt | llm | StrOutputParser()
-    raw = chain.invoke({"user_prompt": user_prompt})
+    # Concatenate directly — do NOT use PromptTemplate here because the system
+    # prompt contains literal JSON curly braces that PromptTemplate would try to
+    # interpret as template variables, raising "Invalid format specifier".
+    full_prompt = DRAFT_SYSTEM_PROMPT + "\n" + user_prompt
+
+    chain = llm | StrOutputParser()
+    raw = chain.invoke(full_prompt)
     logger(f"Draft raw output (first 400 chars): {raw[:400]}")
 
     # Strip any accidental markdown fences
