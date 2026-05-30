@@ -76,8 +76,8 @@ Now generate a workflow for the following request:
 
 NODE_W = 280
 NODE_H = 320
-X_GAP = 340   # horizontal gap between sibling nodes
-Y_GAP = 380   # vertical gap between levels
+LEVEL_GAP = 380   # horizontal distance between depth levels  (left → right flow)
+SIBLING_GAP = 360  # vertical distance between sibling nodes at the same level
 
 
 def auto_layout(nodes: List[Dict]) -> List[Dict]:
@@ -122,16 +122,16 @@ def auto_layout(nodes: List[Dict]) -> List[Dict]:
             max_lvl += 1
             by_level[max_lvl].append(n["uniq_id"])
 
-    # Assign coordinates
+    # Assign coordinates — horizontal flow: levels grow left→right, siblings stack top→bottom
     for lvl, ids in by_level.items():
         count = len(ids)
-        total_w = count * NODE_W + (count - 1) * (X_GAP - NODE_W)
-        start_x = -total_w // 2 + NODE_W // 2
+        total_h = count * NODE_H + (count - 1) * (SIBLING_GAP - NODE_H)
+        start_y = -(total_h // 2) + NODE_H // 2
         for i, nid in enumerate(ids):
             n = id_to_node[nid]
             n["ext"] = {
-                "pos_x": start_x + i * X_GAP,
-                "pos_y": 60 + lvl * Y_GAP,
+                "pos_x": 60 + lvl * LEVEL_GAP,
+                "pos_y": start_y + i * SIBLING_GAP,
                 "width": NODE_W,
                 "height": NODE_H,
             }
