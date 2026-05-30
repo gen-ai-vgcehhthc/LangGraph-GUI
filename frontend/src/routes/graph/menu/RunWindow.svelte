@@ -3,37 +3,42 @@
 	import { openRunWindow, username, llmModel, apiKey } from './menu.store';
 	import { get } from 'svelte/store';
 	import { graphs } from '../flow/graphs.store.svelte';
-
 	import type { ExportedGraph } from '../flow/graphs-algo.svelte';
 	import { GraphsToJson } from '../flow/graphs-algo.svelte';
+	import { markNodeRunning, markNodeDone, clearRunningNodes } from '../flow/run-state.store';
 
 	const SERVER_URL = import.meta.env.VITE_BACKEND_URL;
 
-	// local UI state
+	// Markers the backend embeds in its log stream
+	const NODE_START_RE = /__NODE_START__(.+?)__/g;
+	const NODE_END_RE = /__NODE_END__(.+?)__/g;
+
 	let isRunning = $state(false);
 	let responseMessage = $state('');
+
+	function processChunk(chunk: string) {
+		// Parse and strip node-start markers
+		for (const m of chunk.matchAll(NODE_START_RE)) markNodeRunning(m[1]);
+		for (const m of chunk.matchAll(NODE_END_RE)) markNodeDone(m[1]);
+		// Remove the markers from the visible log
+		return chunk.replace(/__NODE_(START|END)__.+?__/g, '');
+	}
 
 	async function handleRun() {
 		isRunning = true;
 		responseMessage = '';
+		clearRunningNodes();
 
 		try {
-			// 1. serialize your graphs
 			const gm = get(graphs);
 			const workflowJsonArray: ExportedGraph[] = GraphsToJson(gm);
 			const jsonString = JSON.stringify(workflowJsonArray, null, 2);
 
-			// 2. wrap in a File object
 			const blob = new Blob([jsonString], { type: 'application/json' });
-			const workflowFile = new File([blob], 'workflow.json', {
-				type: 'application/json'
-			});
-
-			// 3. put it in FormData under "files"
+			const workflowFile = new File([blob], 'workflow.json', { type: 'application/json' });
 			const formData = new FormData();
 			formData.append('files', workflowFile);
 
-			// 4. POST to your existing upload endpoint
 			const user = get(username);
 			let res = await fetch(`${SERVER_URL}/upload/${encodeURIComponent(user)}`, {
 				method: 'POST',
@@ -41,7 +46,6 @@
 			});
 
 			if (!res.ok) {
-				// parse server error payload if it sent JSON
 				let errMsg = res.statusText;
 				try {
 					const err = await res.json();
@@ -52,7 +56,6 @@
 				throw new Error(`Upload failed: ${errMsg}`);
 			}
 
-			// 5. now call /run with JSON payload
 			const payload = {
 				username: user,
 				llm_model: get(llmModel),
@@ -70,7 +73,6 @@
 				throw new Error(`Run failed: ${text || res.statusText}`);
 			}
 
-			// 6. stream the response
 			const reader = res.body.getReader();
 			const decoder = new TextDecoder();
 			let done = false;
@@ -80,19 +82,19 @@
 				const { value, done: doneReading } = await reader.read();
 				done = doneReading;
 				if (value) {
-					buffer += decoder.decode(value, { stream: true });
-					// update UI as chunks arrive
+					const raw = decoder.decode(value, { stream: true });
+					buffer += processChunk(raw);
 					responseMessage = buffer;
 				}
 			}
 
-			// final decode (in case any remains)
-			buffer += decoder.decode();
+			buffer += processChunk(decoder.decode());
 			responseMessage = buffer;
 		} catch (err) {
 			responseMessage = err instanceof Error ? err.message : `${err}`;
 		} finally {
 			isRunning = false;
+			clearRunningNodes();
 		}
 	}
 

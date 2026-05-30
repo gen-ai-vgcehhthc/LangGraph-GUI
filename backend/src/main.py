@@ -13,6 +13,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from ServerTee import ServerTee
 from process_handler import ProcessHandler
 from FileTransmit import file_router
+from llm import get_llm
+from draft import generate_draft
 
 # log name as today's date in YYYY-MM-DD format
 today_date = datetime.now().strftime("%Y-%m-%d")
@@ -87,6 +89,25 @@ async def run_script(request: Request, username: str):
             yield f"data: {output}\n\n"
 
     return StreamingResponse(stream_response(), media_type="text/event-stream")
+
+@app.post('/draft/{username}')
+async def draft_workflow(request: Request, username: str):
+    """Generate a workflow JSON from a plain-text prompt using the LLM."""
+    data = await request.json()
+    user_prompt = data.get('prompt', '')
+    llm_model = data.get('llm_model', 'gpt-4o-mini')
+    api_key = data.get('api_key', '')
+
+    if not user_prompt.strip():
+        raise HTTPException(status_code=400, detail="prompt is required")
+
+    try:
+        llm = get_llm(llm_model, api_key)
+        workflow = generate_draft(user_prompt, llm)
+        return JSONResponse(content=workflow)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
 
 @app.get('/status/{username}')
 async def check_status(username: str):

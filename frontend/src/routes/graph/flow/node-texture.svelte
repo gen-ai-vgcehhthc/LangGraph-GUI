@@ -7,6 +7,7 @@
 	import type { NodeLLMConfig } from './node-schema';
 	import { openCrewDesigner } from './graphs-algo.svelte';
 	import { llmProvider, llmModel, apiKey } from '../menu/menu.store';
+	import { runningNodeIds } from './run-state.store';
 	import { get } from 'svelte/store';
 
 	let { id, data, selected, width, height }: NodeProps = $props();
@@ -57,6 +58,9 @@
 		updateNodeData(id, { llm_config: cfg });
 	}
 
+	// Running state — true while this node is executing on the backend
+	let isRunning = $derived($runningNodeIds.has(id));
+
 	// hint showing global default in the dropdown
 	let globalHint = $derived(
 		`Default (${get(llmProvider) === 'openai' ? 'OpenAI' : 'Ollama'}: ${get(llmModel)})`
@@ -64,7 +68,10 @@
 </script>
 
 <div
-	class="relative rounded-md border border-gray-300 bg-gray-200 p-2.5 text-center"
+	class="relative rounded-md border p-2.5 text-center transition-colors duration-300
+		{isRunning
+			? 'animate-pulse border-yellow-400 bg-yellow-100 shadow-lg shadow-yellow-300'
+			: 'border-gray-300 bg-gray-200'}"
 	style="width: {width}px; height: {height}px;"
 >
 	<NodeResizer minWidth={260} minHeight={320} isVisible={selected} color="rgb(255,64,0)" />

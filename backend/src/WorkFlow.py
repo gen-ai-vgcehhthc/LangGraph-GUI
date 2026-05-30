@@ -127,6 +127,16 @@ def info_add(name: str, state: PipelineState, information: str, llm) -> Pipeline
     return state
 
 
+def with_markers(node_id: str, func: Callable) -> Callable:
+    """Wrap a node function so the frontend can highlight it while running."""
+    def wrapped(state):
+        logger(f"__NODE_START__{node_id}__")
+        result = func(state)
+        logger(f"__NODE_END__{node_id}__")
+        return result
+    return wrapped
+
+
 def ensure_crewai():
     """Install crewai at runtime if not already present."""
     try:
@@ -268,7 +278,8 @@ def build_subgraph(node_map: Dict[str, NodeData], llm, graphs_data: List[Any] = 
             """
             subgraph.add_node(
                 current_node.uniq_id,
-                lambda state, template=prompt_template, node_llm=node_llm, name=current_node.name: execute_tool(name, state, template, node_llm)
+                with_markers(current_node.uniq_id,
+                    lambda state, template=prompt_template, node_llm=node_llm, name=current_node.name: execute_tool(name, state, template, node_llm))
             )
         else:
             prompt_template = f"""
@@ -278,7 +289,8 @@ def build_subgraph(node_map: Dict[str, NodeData], llm, graphs_data: List[Any] = 
             """
             subgraph.add_node(
                 current_node.uniq_id,
-                lambda state, template=prompt_template, node_llm=node_llm, name=current_node.name: execute_step(name, state, template, node_llm)
+                with_markers(current_node.uniq_id,
+                    lambda state, template=prompt_template, node_llm=node_llm, name=current_node.name: execute_step(name, state, template, node_llm))
             )
 
     # Add INFO nodes
@@ -286,7 +298,8 @@ def build_subgraph(node_map: Dict[str, NodeData], llm, graphs_data: List[Any] = 
     for info_node in info_nodes:
         subgraph.add_node(
             info_node.uniq_id,
-            lambda state, template=info_node.description, node_llm=llm, name=info_node.name: info_add(name, state, template, node_llm)
+            with_markers(info_node.uniq_id,
+                lambda state, template=info_node.description, node_llm=llm, name=info_node.name: info_add(name, state, template, node_llm))
         )
 
     # Add SUBGRAPH nodes
@@ -294,30 +307,31 @@ def build_subgraph(node_map: Dict[str, NodeData], llm, graphs_data: List[Any] = 
     for sg_node in subgraph_nodes:
         subgraph.add_node(
             sg_node.uniq_id,
-            lambda state, name=sg_node.name, sg_name=sg_node.name: sg_add(name, state, sg_name)
+            with_markers(sg_node.uniq_id,
+                lambda state, name=sg_node.name, sg_name=sg_node.name: sg_add(name, state, sg_name))
         )
 
     # Add CREWAI nodes
     crewai_nodes = find_nodes_by_type(node_map, "CREWAI")
     for crew_node in crewai_nodes:
-        # For CrewAI, the per-node LLM config is passed into execute_crewai directly
-        node_llm_cfg = crew_node.llm_config  # may be None → execute_crewai uses global
+        node_llm_cfg = crew_node.llm_config
         subgraph.add_node(
             crew_node.uniq_id,
-            lambda state,
-                   name=crew_node.name,
-                   task_desc=crew_node.description,
-                   cfg=crew_node.crew_config or {},
-                   gdata=graphs_data or [],
-                   model=llm_model,
-                   key=api_key,
-                   nid=crew_node.uniq_id,
-                   nlcfg=node_llm_cfg: execute_crewai(
-                       name, state, task_desc, cfg, gdata,
-                       nlcfg.get("model", model) if nlcfg and not nlcfg.get("use_default", True) else model,
-                       nlcfg.get("api_key", key) if nlcfg and not nlcfg.get("use_default", True) else key,
-                       nid
-                   )
+            with_markers(crew_node.uniq_id,
+                lambda state,
+                       name=crew_node.name,
+                       task_desc=crew_node.description,
+                       cfg=crew_node.crew_config or {},
+                       gdata=graphs_data or [],
+                       model=llm_model,
+                       key=api_key,
+                       nid=crew_node.uniq_id,
+                       nlcfg=node_llm_cfg: execute_crewai(
+                           name, state, task_desc, cfg, gdata,
+                           nlcfg.get("model", model) if nlcfg and not nlcfg.get("use_default", True) else model,
+                           nlcfg.get("api_key", key) if nlcfg and not nlcfg.get("use_default", True) else key,
+                           nid
+                       ))
         )
 
     # Edges — from start_node
@@ -345,7 +359,8 @@ def build_subgraph(node_map: Dict[str, NodeData], llm, graphs_data: List[Any] = 
         """
         subgraph.add_node(
             condition.uniq_id,
-            lambda state, template=condition_template, node_llm=node_llm, name=condition.name: condition_switch(name, state, template, node_llm)
+            with_markers(condition.uniq_id,
+                lambda state, template=condition_template, node_llm=node_llm, name=condition.name: condition_switch(name, state, template, node_llm))
         )
 
         logger(f"{condition.name} {condition.uniq_id}'s condition")

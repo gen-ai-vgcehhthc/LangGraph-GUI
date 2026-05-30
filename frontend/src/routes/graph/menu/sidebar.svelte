@@ -3,8 +3,10 @@
 	import { handleUpload, handleDownload, handleCleanCache } from './FileTransmit.svelte';
 	import { openRunWindow, openSidebar, openConfigWindow } from './menu.store';
 	import { OpenDoc } from '../../doc/open-doc.svelte';
+	import DraftWindow from './DraftWindow.svelte';
 
 	let fileInput: HTMLInputElement;
+	let draftOpen = $state(false);
 
 	let contentOffset = $derived($openSidebar ? 0 : -200);
 
@@ -42,7 +44,15 @@
 		e.preventDefault();
 		OpenDoc();
 	}
+
+	function triggerDraft(e: MouseEvent) {
+		e.preventDefault();
+		draftOpen = true;
+	}
 </script>
+
+<!-- Draft modal (rendered outside sidebar so it covers the full viewport) -->
+<DraftWindow bind:open={draftOpen} />
 
 <div class="relative flex min-h-screen">
 	{#if !$openSidebar}
@@ -67,6 +77,12 @@
 
 		<!-- NAV -->
 		<nav class="space-y-3 px-4">
+			<!-- AI Draft -->
+			<button
+				class="w-full rounded bg-gradient-to-r from-purple-500 to-blue-500 px-3 py-2 text-left font-semibold text-white hover:opacity-90"
+				onclick={triggerDraft}>✨ AI Draft</button
+			>
+
 			<!-- Upload -->
 			<div>
 				<button
@@ -113,7 +129,6 @@
 </div>
 
 <style>
-	/* Smooth content shift when sidebar opens/closes */
 	.content-area {
 		transition: margin-left 0.3s ease-in-out;
 	}
