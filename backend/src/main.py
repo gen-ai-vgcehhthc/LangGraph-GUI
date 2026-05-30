@@ -81,10 +81,12 @@ async def run_script(request: Request, username: str):
     handler = handlers[username]
     # start process in background
     async def stream_response():
-        asyncio.create_task(handler.run(command, user_workspace)) # start the process as a task
+        import json as _json
+        asyncio.create_task(handler.run(command, user_workspace))
         async for output in handler.get_stream():
             if isinstance(output, dict):
-                yield f"data: {output}\n\n"  # Send final status
+                # Emit as a parseable marker so the frontend can detect errors
+                yield f"data: STDOUT: __STATUS__{_json.dumps(output)}__\n\n"
                 break
             yield f"data: {output}\n\n"
 

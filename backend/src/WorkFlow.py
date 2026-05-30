@@ -167,17 +167,6 @@ def with_markers(node_id: str, func: Callable) -> Callable:
     return wrapped
 
 
-def ensure_crewai():
-    """Install crewai at runtime if not already present."""
-    try:
-        import crewai  # noqa: F401
-    except ImportError:
-        logger("crewai not found — installing...")
-        import subprocess
-        subprocess.check_call(["pip", "install", "crewai", "crewai-tools"], stdout=subprocess.DEVNULL)
-        logger("crewai installed.")
-
-
 def execute_crewai(
     name: str,
     state: PipelineState,
@@ -188,76 +177,99 @@ def execute_crewai(
     api_key: str,
     node_id: str,
 ) -> PipelineState:
+    """Run a CrewAI crew.  All exceptions are caught and written to history."""
     logger(f"{name} (CrewAI) is working...")
-    ensure_crewai()
-
-    from crewai import Agent, Task, Crew, Process  # type: ignore
-
-    max_tokens: int = crew_config.get("max_tokens", 4096)
-    max_api_calls: int = crew_config.get("max_api_calls", 10)
-    process_type: str = crew_config.get("process", "sequential")
-    crew_subgraph: str = crew_config.get("crew_subgraph", f"__crew__{node_id}")
-
-    # Resolve agent nodes from the linked crew subgraph
-    crew_graph = next(
-        (g for g in graphs_data if g.get("name") == crew_subgraph), None
-    )
-    agent_node_dicts = (
-        [n for n in crew_graph.get("nodes", []) if n.get("type") == "AGENT"]
-        if crew_graph
-        else []
-    )
-
-    # Build LLM for agents (OpenAI-compatible)
     try:
-        from langchain_openai import ChatOpenAI  # type: ignore
+        # crewai is in requirements.txt — just import it
+        from crewai import Agent, Task, Crew  # type: ignore
 
-        agent_llm = ChatOpenAI(
-            model=llm_model,
-            api_key=api_key,
-            max_tokens=max_tokens,
-        )
-    except Exception:
-        agent_llm = None
-
-    agents = []
-    for a in agent_node_dicts:
+        # Process enum moved between crewai versions — handle both import paths
         try:
-            cfg = json.loads(a.get("description", "{}"))
-        except json.JSONDecodeError:
-            cfg = {}
-        agent = Agent(
-            role=cfg.get("role", a.get("name", "Agent")),
-            goal=cfg.get("goal", "Complete the assigned task."),
-            backstory=cfg.get("backstory", "An AI agent."),
-            llm=agent_llm,
-            max_iter=max_api_calls,
-            verbose=True,
+            from crewai import Process  # type: ignore
+        except ImportError:
+            from crewai.process import Process  # type: ignore  # newer versions
+
+        cfg = crew_config or {}
+        max_api_calls: int = cfg.get("max_api_calls", 10)
+        process_type: str = cfg.get("process", "sequential")
+        crew_subgraph: str = cfg.get("crew_subgraph", f"__crew__{node_id}")
+
+        # Set API key in env so CrewAI's internal LLM factory can find it
+        if api_key:
+            os.environ["OPENAI_API_KEY"] = api_key
+
+        # Resolve AGENT nodes from the linked crew subgraph
+        crew_graph = next(
+            (g for g in graphs_data if g.get("name") == crew_subgraph), None
         )
-        agents.append(agent)
+        if not crew_graph:
+            raise ValueError(
+                f"Crew subgraph '{crew_subgraph}' not found. "
+                "Open the Crew Designer on the CREWAI node and add AGENT nodes."
+            )
 
-    if not agents:
-        logger(f"{name}: no AGENT nodes found in '{crew_subgraph}', skipping crew.")
-        state["history"] += f"\n[CrewAI {name}]: No agents configured."
-        return state
+        agent_node_dicts = [
+            n for n in crew_graph.get("nodes", []) if n.get("type") == "AGENT"
+        ]
+        if not agent_node_dicts:
+            raise ValueError(
+                f"No AGENT nodes found in '{crew_subgraph}'. "
+                "Add at least one AGENT node in the Crew Designer."
+            )
 
-    full_task = task_description + "\n\nContext:\n" + clip_history(state["history"])
-    tasks = [
-        Task(
-            description=full_task,
-            expected_output="A comprehensive result addressing the task.",
-            agent=agents[0],
+        # Build agents
+        # Pass llm as a model-name string — crewai handles LLM creation internally.
+        agents: list = []
+        agent_cfgs: list = []
+        for a in agent_node_dicts:
+            try:
+                acfg = json.loads(a.get("description", "{}"))
+            except (json.JSONDecodeError, TypeError):
+                acfg = {}
+            agent_cfgs.append(acfg)
+            agents.append(Agent(
+                role=acfg.get("role", a.get("name", "Agent")),
+                goal=acfg.get("goal", "Complete the assigned task."),
+                backstory=acfg.get("backstory", "An AI agent."),
+                llm=llm_model,          # string model name works across crewai versions
+                max_iter=max_api_calls,
+                verbose=True,
+            ))
+
+        # Build one Task per Agent.
+        # If the agent JSON has a "task" key, use it; otherwise fall back to the
+        # CREWAI node's description (with context injected only for the first task).
+        context_str = clip_history(state["history"])
+        tasks: list = []
+        for i, (agent, acfg) in enumerate(zip(agents, agent_cfgs)):
+            if "task" in acfg:
+                desc = acfg["task"]
+            else:
+                desc = task_description
+            if i == 0 and context_str:
+                desc += f"\n\nContext from previous steps:\n{context_str}"
+            tasks.append(Task(
+                description=desc,
+                expected_output="A comprehensive, well-structured result.",
+                agent=agent,
+            ))
+
+        process = (
+            Process.sequential if process_type == "sequential" else Process.hierarchical
         )
-    ]
+        crew = Crew(agents=agents, tasks=tasks, process=process, verbose=True)
+        result = crew.kickoff()
 
-    process = Process.sequential if process_type == "sequential" else Process.hierarchical
-    crew = Crew(agents=agents, tasks=tasks, process=process, verbose=True)
-    result = crew.kickoff()
+        result_str = str(result)
+        state["history"] += f"\n[CrewAI {name}]: {result_str}"
+        state["history"] = clip_history(state["history"])
+        logger(f"CrewAI {name} completed successfully.")
 
-    result_str = str(result)
-    state["history"] += f"\n[CrewAI {name}]: {result_str}"
-    state["history"] = clip_history(state["history"])
-    logger(f"CrewAI {name} result: {result_str[:300]}")
+    except Exception as exc:
+        error_msg = f"{type(exc).__name__}: {exc}"
+        logger(f"CrewAI {name} FAILED — {error_msg}")
+        state["history"] += f"\n[CrewAI Error ({name})]: {error_msg}"
+
     return state
 
 
@@ -421,16 +433,21 @@ class MainGraphState(TypedDict):
 
 def invoke_root(state: MainGraphState):
     subgraph = subgraph_registry["root"]
-    response = subgraph.invoke(
-        PipelineState(
-            history="",
-            task="",
-            condition=False
+    history = ""
+    try:
+        response = subgraph.invoke(
+            PipelineState(history="", task="", condition=False)
         )
-    )
-    # Emit final result so the frontend result panel can display it
+        history = response.get("history", "")
+    except Exception as exc:
+        # Catch pipeline-level errors so __RESULT_START__/__RESULT_END__ are
+        # always emitted and the frontend result panel shows what went wrong.
+        error_text = f"Pipeline error — {type(exc).__name__}: {exc}"
+        logger(error_text)
+        history = error_text
+
     logger("__RESULT_START__")
-    logger(response.get("history", ""))
+    logger(history)
     logger("__RESULT_END__")
     return {"input": None}
 

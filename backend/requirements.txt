@@ -12,3 +12,5 @@ python-multipart
 
 langchain-ollama
 langchain-openai
+crewai
+crewai-tools

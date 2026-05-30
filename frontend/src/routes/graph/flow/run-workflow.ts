@@ -129,12 +129,24 @@ export async function runWorkflow(): Promise<void> {
 				// ── INPUT node request ────────────────────────────────────
 				const req = parseInputRequest(line);
 				if (req) inputRequest.set(req);
+
+				// ── Subprocess exit status ────────────────────────────────
+				const statusM = line.match(/__STATUS__(\{.+\})__/);
+				if (statusM) {
+					try {
+						const st = JSON.parse(statusM[1]) as { status: string; message: string };
+						if (st.status === 'error' && !resultBuf.trim()) {
+							resultBuf = `Process error: ${st.message}\n\nCheck the "View Output" button on individual nodes for details.`;
+						}
+					} catch { /* ignore */ }
+				}
 			}
 		}
 
 		nodeOutputs.set(nodeOutBuf);
-		execResult.set(resultBuf.trim() || '(workflow completed — no output captured)');
-		execStatus.set('done');
+		const finalResult = resultBuf.trim();
+		execResult.set(finalResult || '(workflow completed — no output captured)');
+		execStatus.set(finalResult ? 'done' : 'error');
 		resultPanelOpen.set(true);
 	} catch (err) {
 		execResult.set(err instanceof Error ? err.message : String(err));
