@@ -1,20 +1,20 @@
 <!-- src/routes/graph/menu/ConfigWindow.svelte -->
 <script lang="ts">
 	import { get } from 'svelte/store';
-	import { openConfigWindow, username, llmModel, apiKey } from './menu.store';
+	import { openConfigWindow, username, llmProvider, llmModel, apiKey } from './menu.store';
+	import type { LLMProvider } from './menu.store';
 
-	// Initialize local copies from the stores
+	let providerValue = $state<LLMProvider>(get(llmProvider));
 	let llmModelValue = $state(get(llmModel));
 	let apiKeyValue = $state(get(apiKey));
 
 	function handleSave() {
-		// Update stores
+		llmProvider.set(providerValue);
 		llmModel.set(llmModelValue);
 		apiKey.set(apiKeyValue);
-		// Persist for next load
+		localStorage.setItem('llmProvider', providerValue);
 		localStorage.setItem('llmModel', llmModelValue);
 		localStorage.setItem('apiKey', apiKeyValue);
-		// Close modal
 		openConfigWindow.set(false);
 	}
 
@@ -40,27 +40,44 @@
 				/>
 			</div>
 
-			<!-- LLM model -->
+			<!-- Default LLM Provider -->
 			<div class="mb-3">
-				<label for="llmModel" class="mb-1 block text-sm">LLM model:</label>
+				<label for="llmProvider" class="mb-1 block text-sm">Default LLM Provider:</label>
+				<select
+					id="llmProvider"
+					bind:value={providerValue}
+					class="w-full rounded border border-gray-300 p-2 focus:outline-none"
+				>
+					<option value="openai">OpenAI (API)</option>
+					<option value="ollama">Ollama (Local)</option>
+				</select>
+			</div>
+
+			<!-- Default LLM Model -->
+			<div class="mb-3">
+				<label for="llmModel" class="mb-1 block text-sm">Default Model:</label>
 				<input
 					type="text"
 					id="llmModel"
 					bind:value={llmModelValue}
+					placeholder="e.g. gpt-4o-mini or llama3"
 					class="w-full rounded border border-gray-300 p-2 focus:outline-none"
 				/>
 			</div>
 
-			<!-- API Key -->
-			<div class="mb-4">
-				<label for="apiKey" class="mb-1 block text-sm">API key:</label>
-				<input
-					type="text"
-					id="apiKey"
-					bind:value={apiKeyValue}
-					class="w-full rounded border border-gray-300 p-2 focus:outline-none"
-				/>
-			</div>
+			<!-- API Key (only relevant for online providers) -->
+			{#if providerValue === 'openai'}
+				<div class="mb-4">
+					<label for="apiKey" class="mb-1 block text-sm">API Key:</label>
+					<input
+						type="password"
+						id="apiKey"
+						bind:value={apiKeyValue}
+						placeholder="sk-..."
+						class="w-full rounded border border-gray-300 p-2 focus:outline-none"
+					/>
+				</div>
+			{/if}
 
 			<!-- Actions -->
 			<div class="flex justify-end space-x-2">

@@ -10,7 +10,7 @@ import inspect
 from langgraph.graph import StateGraph, END, START
 
 from NodeData import NodeData
-from llm import get_llm, clip_history, create_llm_chain
+from llm import get_llm, get_node_llm, clip_history, create_llm_chain
 from util import logger
 
 # Tool registry to hold information about tools
@@ -254,6 +254,7 @@ def build_subgraph(node_map: Dict[str, NodeData], llm, graphs_data: List[Any] = 
     # Step nodes
     step_nodes = find_nodes_by_type(node_map, "STEP")
     for current_node in step_nodes:
+        node_llm = get_node_llm(current_node.llm_config, llm, llm_model, api_key)
         if current_node.tool:
             tool_info = tool_info_registry[current_node.tool]
             prompt_template = f"""
@@ -266,40 +267,41 @@ def build_subgraph(node_map: Dict[str, NodeData], llm, graphs_data: List[Any] = 
             next stage directly parse then run <func_name>(<arg1>,<arg2>, ...) make sure syntax is right json and align function siganture
             """
             subgraph.add_node(
-                current_node.uniq_id, 
-                lambda state, template=prompt_template, llm=llm, name=current_node.name : execute_tool(name, state, template, llm)
+                current_node.uniq_id,
+                lambda state, template=prompt_template, node_llm=node_llm, name=current_node.name: execute_tool(name, state, template, node_llm)
             )
         else:
-            prompt_template=f"""
+            prompt_template = f"""
             history: {{history}}
             {current_node.description}
             you reply in the json format
             """
             subgraph.add_node(
-                current_node.uniq_id, 
-                lambda state, template=prompt_template, llm=llm, name=current_node.name: execute_step(name, state, template, llm)
+                current_node.uniq_id,
+                lambda state, template=prompt_template, node_llm=node_llm, name=current_node.name: execute_step(name, state, template, node_llm)
             )
 
     # Add INFO nodes
     info_nodes = find_nodes_by_type(node_map, "INFO")
     for info_node in info_nodes:
-        # INFO nodes just append predefined information to the state history
         subgraph.add_node(
-            info_node.uniq_id, 
-            lambda state, template=info_node.description, llm=llm, name=info_node.name: info_add(name, state, template, llm)
+            info_node.uniq_id,
+            lambda state, template=info_node.description, node_llm=llm, name=info_node.name: info_add(name, state, template, node_llm)
         )
-    
+
     # Add SUBGRAPH nodes
     subgraph_nodes = find_nodes_by_type(node_map, "SUBGRAPH")
     for sg_node in subgraph_nodes:
         subgraph.add_node(
             sg_node.uniq_id,
-            lambda state, llm=llm, name=sg_node.name, sg_name=sg_node.name: sg_add(name, state, sg_name)
+            lambda state, name=sg_node.name, sg_name=sg_node.name: sg_add(name, state, sg_name)
         )
 
     # Add CREWAI nodes
     crewai_nodes = find_nodes_by_type(node_map, "CREWAI")
     for crew_node in crewai_nodes:
+        # For CrewAI, the per-node LLM config is passed into execute_crewai directly
+        node_llm_cfg = crew_node.llm_config  # may be None → execute_crewai uses global
         subgraph.add_node(
             crew_node.uniq_id,
             lambda state,
@@ -309,11 +311,16 @@ def build_subgraph(node_map: Dict[str, NodeData], llm, graphs_data: List[Any] = 
                    gdata=graphs_data or [],
                    model=llm_model,
                    key=api_key,
-                   nid=crew_node.uniq_id: execute_crewai(name, state, task_desc, cfg, gdata, model, key, nid)
+                   nid=crew_node.uniq_id,
+                   nlcfg=node_llm_cfg: execute_crewai(
+                       name, state, task_desc, cfg, gdata,
+                       nlcfg.get("model", model) if nlcfg and not nlcfg.get("use_default", True) else model,
+                       nlcfg.get("api_key", key) if nlcfg and not nlcfg.get("use_default", True) else key,
+                       nid
+                   )
         )
 
-    # Edges
-    # Find all next nodes from start_node
+    # Edges — from start_node
     next_node_ids = start_node.nexts
     next_nodes = [node_map[next_id] for next_id in next_node_ids]
 
@@ -321,10 +328,9 @@ def build_subgraph(node_map: Dict[str, NodeData], llm, graphs_data: List[Any] = 
         logger(f"Next node ID: {next_node.uniq_id}, Type: {next_node.type}")
         subgraph.add_edge(START, next_node.uniq_id)
 
-    # Find all next nodes from step_nodes
+    # Edges — from all executable nodes
     for node in step_nodes + info_nodes + subgraph_nodes + crewai_nodes:
         next_nodes = [node_map[next_id] for next_id in node.nexts]
-        
         for next_node in next_nodes:
             logger(f"{node.name} {node.uniq_id}'s next node: {next_node.name} {next_node.uniq_id}, Type: {next_node.type}")
             subgraph.add_edge(node.uniq_id, next_node.uniq_id)
@@ -332,13 +338,14 @@ def build_subgraph(node_map: Dict[str, NodeData], llm, graphs_data: List[Any] = 
     # Find all condition nodes
     condition_nodes = find_nodes_by_type(node_map, "CONDITION")
     for condition in condition_nodes:
+        node_llm = get_node_llm(condition.llm_config, llm, llm_model, api_key)
         condition_template = f"""{condition.description}
         history: {{history}}, decide the condition result in the json format:
         "switch": True/False
         """
         subgraph.add_node(
-            condition.uniq_id, 
-            lambda state, template=condition_template, llm=llm, name=condition.name: condition_switch(name, state, template, llm)
+            condition.uniq_id,
+            lambda state, template=condition_template, node_llm=node_llm, name=condition.name: condition_switch(name, state, template, node_llm)
         )
 
         logger(f"{condition.name} {condition.uniq_id}'s condition")

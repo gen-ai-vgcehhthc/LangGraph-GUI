@@ -1,5 +1,8 @@
 # Local development compose — works on Windows without GPU or Nginx.
 # Usage: docker compose -f docker-compose-dev.yml up --build
+#
+# Frontend: http://localhost:3000  (Vite HMR dev server)
+# Backend:  http://localhost:5000
 services:
   frontend:
     build:
@@ -7,10 +10,14 @@ services:
     ports:
       - "3000:3000"
     volumes:
+      # live-reload: mount source into the container
       - ./frontend/src:/app/src
+      # keep node_modules from the image (don't overwrite with host)
+      - /app/node_modules
     networks:
       - dev-net
-    command: npm run dev -- --host
+    # Override the production CMD with the Vite dev server
+    command: npm run dev
 
   backend:
     build:

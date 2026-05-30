@@ -42,6 +42,9 @@ class NodeData(Serializable):
     # CREWAI
     crew_config: Optional[Dict] = None
 
+    # Per-node LLM override (None = use global LLM)
+    llm_config: Optional[Dict] = None
+
     def to_dict(self):
         return asdict(self)
 

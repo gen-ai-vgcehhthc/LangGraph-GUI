@@ -1,18 +1,20 @@
 FROM node:24
 
-# Create and set the working directory
 WORKDIR /app
 
-# Copy all files to the container
-COPY . .
+# Copy manifests first for better layer caching
+COPY package.json package-lock.json* ./
 
-# Install dependencies
+# Install all dependencies (dev + prod)
 RUN npm install
 
+# Copy source
+COPY . .
+
+# Production build (used when CMD is not overridden)
 RUN npm run build
 
-# Expose the port the app runs on
 EXPOSE 3000
 
-# Start the application
+# Production default: serve the built output on port 3000
 CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "3000"]

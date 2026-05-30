@@ -11,3 +11,4 @@ pyyaml
 python-multipart
 
 langchain-ollama
+langchain-openai

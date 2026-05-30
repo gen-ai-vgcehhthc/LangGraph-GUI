@@ -7,6 +7,9 @@ __pycache__/
 .env
 .env.local
 *.log
-log/
-workspace/
+# keep the directory stubs but ignore their contents
+backend/src/log/*
+!backend/src/log/.gitkeep
+backend/src/workspace/*
+!backend/src/workspace/.gitkeep
 .ollama/

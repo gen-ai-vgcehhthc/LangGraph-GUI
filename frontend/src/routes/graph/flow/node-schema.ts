@@ -11,6 +11,13 @@ export enum NodeType {
 	AGENT = 'AGENT'
 }
 
+export interface NodeLLMConfig {
+	use_default: boolean;
+	provider: 'openai' | 'ollama';
+	model: string;
+	api_key: string;
+}
+
 export interface CrewConfig {
 	max_tokens: number;
 	max_api_calls: number;
@@ -28,6 +35,7 @@ export interface JsonNodeData {
 	true_next: string | null;
 	false_next: string | null;
 	crew_config: CrewConfig | null;
+	llm_config: NodeLLMConfig | null;
 	ext: {
 		pos_x?: number;
 		pos_y?: number;
@@ -46,6 +54,7 @@ export type FlowNodeData = {
 	true_next: string | null;
 	false_next: string | null;
 	crew_config: CrewConfig | null;
+	llm_config: NodeLLMConfig | null;
 };
 
 export type FlowNode = Node<FlowNodeData>;
@@ -74,7 +83,8 @@ export function JsonNodeToSvelteNode(json: JsonNodeData): FlowNode {
 			nexts: new Set(json.nexts),
 			true_next: json.true_next,
 			false_next: json.false_next,
-			crew_config: json.crew_config ?? null
+			crew_config: json.crew_config ?? null,
+			llm_config: json.llm_config ?? null
 		} as FlowNodeData
 	};
 }
@@ -91,6 +101,7 @@ export function SvelteNodeToJsonNode(node: FlowNode): JsonNodeData {
 		true_next: node.data.true_next,
 		false_next: node.data.false_next,
 		crew_config: node.data.crew_config ?? null,
+		llm_config: node.data.llm_config ?? null,
 		ext: {
 			pos_x: node.position.x,
 			pos_y: node.position.y,

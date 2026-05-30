@@ -49,6 +49,22 @@ def get_llm(llm_model, api_key):
 
 
 
+def get_node_llm(llm_config: dict | None, global_llm, global_model: str, global_key: str):
+    """
+    Return the LLM for a single node.
+    - If llm_config is None or use_default=True  → return the pre-built global_llm.
+    - Otherwise build a fresh LLM from the node's own provider/model/api_key.
+    """
+    if not llm_config or llm_config.get("use_default", True):
+        return global_llm
+
+    provider = llm_config.get("provider", "openai")
+    model = llm_config.get("model") or global_model
+    key = llm_config.get("api_key") or global_key
+
+    return get_llm(model, key) if provider == "openai" or "gpt" in model.lower() else get_llm(model, key)
+
+
 def ChatBot(llm, question):
     # Define the prompt template
     template = """

@@ -23,7 +23,7 @@ RUN chmod +x /app/daily.sh
 # Copy cron configuration
 COPY crontab /mycron
 RUN chmod 644 /mycron
-RUN crontab /mycron
+RUN sed -i 's/\r//' /mycron && crontab /mycron
 
 # Copy Supervisor configuration
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf

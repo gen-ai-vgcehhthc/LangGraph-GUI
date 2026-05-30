@@ -52,7 +52,9 @@
 				type: NodeType.STEP,
 				nexts: new Set<string>(),
 				true_next: null,
-				false_next: null
+				false_next: null,
+				crew_config: null,
+				llm_config: null
 			},
 			position: { x, y },
 			width: 280,
