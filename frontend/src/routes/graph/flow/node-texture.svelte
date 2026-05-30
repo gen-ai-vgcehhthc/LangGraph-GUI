@@ -130,6 +130,14 @@
 		</div>
 	{/if}
 
+	<!-- INPUT NODE hint -->
+	{#if data.type === NodeType.INPUT}
+		<div class="mt-2 rounded border border-cyan-300 bg-cyan-50 p-2 text-left text-xs">
+			<div class="font-semibold text-cyan-700">💬 User Input Node</div>
+			<div class="text-gray-500">The description is shown to the user as a prompt at runtime.</div>
+		</div>
+	{/if}
+
 	<!-- CREWAI CONFIG -->
 	{#if data.type === NodeType.CREWAI}
 		<div class="mt-2 space-y-1 rounded border border-purple-300 bg-purple-50 p-2 text-left text-xs">
@@ -189,7 +197,7 @@
 	{#if data.type !== NodeType.START && data.type !== NodeType.SUBGRAPH && data.type !== NodeType.CREWAI}
 		<div class="mt-2 flex h-[calc(100%-220px)] min-h-[60px] flex-grow flex-col">
 			<label for="node-description-{id}" class="mb-1 block text-left text-sm text-gray-700">
-				{data.type === NodeType.AGENT ? 'Agent JSON:' : 'Description:'}
+				{data.type === NodeType.AGENT ? 'Agent JSON:' : data.type === NodeType.INPUT ? 'Prompt shown to user:' : 'Description:'}
 			</label>
 			<textarea
 				id="node-description-{id}"
@@ -216,7 +224,7 @@
 	{/if}
 
 	<!-- PER-NODE LLM SELECTOR (all nodes that execute LLM) -->
-	{#if data.type !== NodeType.START && data.type !== NodeType.INFO && data.type !== NodeType.SUBGRAPH}
+	{#if data.type !== NodeType.START && data.type !== NodeType.INFO && data.type !== NodeType.SUBGRAPH && data.type !== NodeType.INPUT}
 		<div class="mt-2 rounded border border-gray-300 bg-white px-2 py-1.5 text-xs">
 			<div class="flex items-center space-x-1">
 				<span class="shrink-0 font-medium text-gray-500">LLM:</span>

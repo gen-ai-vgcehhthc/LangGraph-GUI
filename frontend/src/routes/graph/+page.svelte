@@ -5,34 +5,34 @@
 
 	import MenuSidebar from './menu/sidebar.svelte';
 	import MenuConfigWindow from './menu/ConfigWindow.svelte';
-	import MenuRunWindow from './menu/RunWindow.svelte';
-	import { openSidebar } from './menu/menu.store';
 	import MenuGraphsPanel from './menu/graphs-panel.svelte';
 	import MenuGraphButton from './menu/graph-button.svelte';
+	import RunStatusBar from './menu/RunStatusBar.svelte';
+	import ResultPanel from './menu/ResultPanel.svelte';
+	import InputOverlay from './menu/InputOverlay.svelte';
 
+	import { openSidebar } from './menu/menu.store';
 	import { currentNodes, currentEdges } from './flow/graphs.store.svelte';
 	import NodeLayout from './flow/node-texture.svelte';
 	import FlowAlgo from './flow/flow-algo.svelte';
 	import { AddEdge } from './flow/graph-algo.svelte';
 
-	// slide offset when sidebar open
 	let contentOffset = $derived($openSidebar ? 200 : 0);
 
 	const handleConnect: OnConnect = (e) => {
-		if (e.sourceHandle != null) {
-			AddEdge(e.source, e.sourceHandle, e.target);
-		}
+		if (e.sourceHandle != null) AddEdge(e.source, e.sourceHandle, e.target);
 	};
 
-	// custom node types
-	const nodeTypes = {
-		textNode: NodeLayout
-	};
+	const nodeTypes = { textNode: NodeLayout };
 </script>
 
 <MenuSidebar />
-<MenuRunWindow />
 <MenuConfigWindow />
+
+<!-- Execution UI overlays (no popups — they live over the canvas) -->
+<RunStatusBar />
+<ResultPanel />
+<InputOverlay />
 
 <div class="content-wrapper" style="transform: translateX({contentOffset}px)">
 	<div class="panel-container">

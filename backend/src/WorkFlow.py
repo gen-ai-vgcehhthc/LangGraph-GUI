@@ -3,6 +3,7 @@
 import os
 import re
 import json
+import time
 from typing import Dict, List, TypedDict, Any, Annotated, Callable, Literal, Optional, Union
 import operator
 import inspect
@@ -124,6 +125,35 @@ def info_add(name: str, state: PipelineState, information: str, llm) -> Pipeline
     state["history"] += "\n" + information
     state["history"] = clip_history(state["history"])
 
+    return state
+
+
+def execute_input(name: str, state: PipelineState, prompt: str) -> PipelineState:
+    """Pause execution and wait for a user text response (file-based IPC)."""
+    import time
+
+    request_payload = json.dumps({"nodeId": name, "prompt": prompt})
+    logger(f"__INPUT_REQUEST__{request_payload}__")
+
+    input_file = "pending_input.txt"   # relative to CWD = workspace/{username}/
+    # Remove any stale file from a previous run
+    if os.path.exists(input_file):
+        os.remove(input_file)
+
+    deadline = time.time() + 300      # 5-minute timeout
+    while time.time() < deadline:
+        if os.path.exists(input_file):
+            with open(input_file, "r", encoding="utf-8") as f:
+                user_text = f.read().strip()
+            os.remove(input_file)
+            state["history"] += f"\n[User Input ({name})]: {user_text}"
+            state["history"] = clip_history(state["history"])
+            logger(f"__INPUT_DONE__{name}__")
+            return state
+        time.sleep(0.2)
+
+    logger(f"__INPUT_TIMEOUT__{name}__")
+    state["history"] += f"\n[{name}]: Input timed out."
     return state
 
 
@@ -334,6 +364,15 @@ def build_subgraph(node_map: Dict[str, NodeData], llm, graphs_data: List[Any] = 
                        ))
         )
 
+    # Add INPUT nodes
+    input_nodes = find_nodes_by_type(node_map, "INPUT")
+    for inp_node in input_nodes:
+        subgraph.add_node(
+            inp_node.uniq_id,
+            with_markers(inp_node.uniq_id,
+                lambda state, name=inp_node.name, prompt=inp_node.description: execute_input(name, state, prompt))
+        )
+
     # Edges — from start_node
     next_node_ids = start_node.nexts
     next_nodes = [node_map[next_id] for next_id in next_node_ids]
@@ -343,7 +382,7 @@ def build_subgraph(node_map: Dict[str, NodeData], llm, graphs_data: List[Any] = 
         subgraph.add_edge(START, next_node.uniq_id)
 
     # Edges — from all executable nodes
-    for node in step_nodes + info_nodes + subgraph_nodes + crewai_nodes:
+    for node in step_nodes + info_nodes + subgraph_nodes + crewai_nodes + input_nodes:
         next_nodes = [node_map[next_id] for next_id in node.nexts]
         for next_node in next_nodes:
             logger(f"{node.name} {node.uniq_id}'s next node: {next_node.name} {next_node.uniq_id}, Type: {next_node.type}")
@@ -389,7 +428,11 @@ def invoke_root(state: MainGraphState):
             condition=False
         )
     )
-    return  {"input": None}
+    # Emit final result so the frontend result panel can display it
+    logger("__RESULT_START__")
+    logger(response.get("history", ""))
+    logger("__RESULT_END__")
+    return {"input": None}
 
 
 def run_workflow_as_server(llm, llm_model: str = "", api_key: str = ""):
@@ -424,9 +467,7 @@ def run_workflow_as_server(llm, llm_model: str = "", api_key: str = ""):
     # ==========================
     # Run
     # ==========================
-    for state in main_graph.stream(
-        {
-            "input": None,
-        }
-    ):
+    for state in main_graph.stream({"input": None}):
         logger(state)
+
+    logger("__WORKFLOW_COMPLETE__")

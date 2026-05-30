@@ -1,8 +1,10 @@
 <!-- routes/graph/menu/sidebar.svelte -->
 <script lang="ts">
 	import { handleUpload, handleDownload, handleCleanCache } from './FileTransmit.svelte';
-	import { openRunWindow, openSidebar, openConfigWindow } from './menu.store';
+	import { openSidebar, openConfigWindow } from './menu.store';
 	import { OpenDoc } from '../../doc/open-doc.svelte';
+	import { runWorkflow } from '../flow/run-workflow';
+	import { execStatus } from '../flow/run-state.store';
 	import DraftWindow from './DraftWindow.svelte';
 
 	let fileInput: HTMLInputElement;
@@ -32,7 +34,8 @@
 
 	function triggerRun(e: MouseEvent) {
 		e.preventDefault();
-		openRunWindow.set(true);
+		if ($execStatus === 'running') return;
+		runWorkflow();
 	}
 
 	function triggerConfig(e: MouseEvent) {
@@ -106,9 +109,15 @@
 
 			<!-- Run -->
 			<button
-				class="w-full rounded bg-purple-400 px-3 py-2 text-left text-white hover:bg-purple-500"
-				onclick={triggerRun}>Run</button
+				class="w-full rounded px-3 py-2 text-left font-semibold text-white transition-colors
+				       {$execStatus === 'running'
+					       ? 'cursor-not-allowed bg-gray-400'
+					       : 'bg-purple-500 hover:bg-purple-600'}"
+				onclick={triggerRun}
+				disabled={$execStatus === 'running'}
 			>
+				{$execStatus === 'running' ? '⚡ Running…' : '▶ Run'}
+			</button>
 
 			<!-- Config -->
 			<button

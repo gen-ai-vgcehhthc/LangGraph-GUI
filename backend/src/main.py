@@ -90,6 +90,18 @@ async def run_script(request: Request, username: str):
 
     return StreamingResponse(stream_response(), media_type="text/event-stream")
 
+@app.post('/input/{username}')
+async def submit_user_input(request: Request, username: str):
+    """Write user text to pending_input.txt so the INPUT node can read it."""
+    data = await request.json()
+    text = data.get('text', '')
+    workspace = os.path.join("workspace", username)
+    os.makedirs(workspace, exist_ok=True)
+    with open(os.path.join(workspace, "pending_input.txt"), "w", encoding="utf-8") as f:
+        f.write(text)
+    return JSONResponse(content={"ok": True})
+
+
 @app.post('/draft/{username}')
 async def draft_workflow(request: Request, username: str):
     """Generate a workflow JSON from a plain-text prompt using the LLM."""

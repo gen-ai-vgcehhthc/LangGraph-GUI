@@ -8,7 +8,8 @@ export enum NodeType {
 	INFO = 'INFO',
 	SUBGRAPH = 'SUBGRAPH',
 	CREWAI = 'CREWAI',
-	AGENT = 'AGENT'
+	AGENT = 'AGENT',
+	INPUT = 'INPUT'
 }
 
 export interface NodeLLMConfig {
