@@ -143,25 +143,103 @@ def auto_layout(nodes: List[Dict]) -> List[Dict]:
 # Public API
 # ---------------------------------------------------------------------------
 
+def _extract_json(raw: str) -> Any:
+    """
+    Robustly pull the first valid JSON value out of an LLM response.
+    Handles markdown fences, leading prose, and trailing comments.
+    """
+    # Remove markdown code fences (```json ... ``` or ``` ... ```)
+    raw = re.sub(r"```[a-z]*\n?", "", raw).replace("```", "").strip()
+
+    # Fast path: try the whole string first
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        pass
+
+    # Slow path: find the outermost [ ... ] or { ... } by scanning brackets
+    for start_char, end_char in [("[", "]"), ("{", "}")]:
+        idx = raw.find(start_char)
+        if idx == -1:
+            continue
+        depth = 0
+        in_str = False
+        escape = False
+        for i, ch in enumerate(raw[idx:], start=idx):
+            if escape:
+                escape = False
+                continue
+            if ch == "\\" and in_str:
+                escape = True
+                continue
+            if ch == '"':
+                in_str = not in_str
+                continue
+            if in_str:
+                continue
+            if ch == start_char:
+                depth += 1
+            elif ch == end_char:
+                depth -= 1
+                if depth == 0:
+                    try:
+                        return json.loads(raw[idx : i + 1])
+                    except json.JSONDecodeError:
+                        break
+    raise ValueError(f"Could not extract JSON from LLM output:\n{raw[:600]}")
+
+
+def _normalise_graphs(parsed: Any) -> List[Dict[str, Any]]:
+    """
+    Turn whatever the LLM returned into a list of graph dicts, each with
+    'name' and 'nodes' keys.
+
+    Handled cases:
+      1. Correct  → [{"name": "root", "nodes": [...]}]
+      2. Unwrapped dict  → {"name": "root", "nodes": [...]}
+      3. Bare nodes list → [{"type": "START", ...}, ...]
+      4. Nested wrapper  → {"graphs": [...]} or {"workflow": [...]}
+    """
+    # Case 4: dict with a list value (e.g. {"graphs": [...]})
+    if isinstance(parsed, dict):
+        for key in ("graphs", "workflow", "subgraphs"):
+            if key in parsed and isinstance(parsed[key], list):
+                parsed = parsed[key]
+                break
+        else:
+            # Case 2: single graph dict
+            parsed = [parsed]
+
+    # parsed is now a list
+    if not isinstance(parsed, list):
+        raise ValueError(f"Unexpected parsed type: {type(parsed)}")
+
+    # Case 3: flat list of node objects (no "nodes" wrapper)
+    if parsed and isinstance(parsed[0], dict) and "type" in parsed[0] and "nodes" not in parsed[0]:
+        parsed = [{"name": "root", "nodes": parsed}]
+
+    # Ensure every graph has "name" and "nodes"
+    for g in parsed:
+        g.setdefault("name", "root")
+        g.setdefault("nodes", [])
+
+    return parsed
+
+
 def generate_draft(user_prompt: str, llm) -> List[Dict[str, Any]]:
     """Call the LLM to generate a workflow, then auto-layout the nodes."""
-    # Concatenate directly — do NOT use PromptTemplate here because the system
-    # prompt contains literal JSON curly braces that PromptTemplate would try to
-    # interpret as template variables, raising "Invalid format specifier".
+    # Concatenate directly — do NOT use PromptTemplate: the system prompt
+    # contains literal JSON braces that PromptTemplate mis-parses as variables.
     full_prompt = DRAFT_SYSTEM_PROMPT + "\n" + user_prompt
 
     chain = llm | StrOutputParser()
     raw = chain.invoke(full_prompt)
-    logger(f"Draft raw output (first 400 chars): {raw[:400]}")
+    logger(f"Draft raw output (first 600 chars): {raw[:600]}")
 
-    # Strip any accidental markdown fences
-    raw = re.sub(r"^```[a-z]*\n?", "", raw.strip(), flags=re.MULTILINE)
-    raw = re.sub(r"\n?```$", "", raw.strip(), flags=re.MULTILINE)
+    parsed = _extract_json(raw)
+    graphs = _normalise_graphs(parsed)
 
-    graphs: List[Dict[str, Any]] = json.loads(raw.strip())
-
-    # Apply auto-layout to every graph
     for g in graphs:
-        g["nodes"] = auto_layout(g.get("nodes", []))
+        g["nodes"] = auto_layout(g["nodes"])
 
     return graphs
