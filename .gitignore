@@ -1,0 +1,12 @@
+node_modules/
+.svelte-kit/
+dist/
+build/
+__pycache__/
+*.pyc
+.env
+.env.local
+*.log
+log/
+workspace/
+.ollama/

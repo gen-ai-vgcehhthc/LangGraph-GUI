@@ -1,0 +1,53 @@
+services:
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - ./frontend/src/:/app/src/
+      - ./frontend/node_modules/:/app/node_modules/
+      - ./frontend/.svelte-kit/:/app/.svelte-kit/
+    networks:
+      - shared-network
+    command: npm run dev
+
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "127.0.0.1:5000:5000"
+    volumes:
+      - ./backend/src/:/app/src/
+    environment:
+      - BACKEND_PORT=5000
+      - OLLAMA_BASE_URL=http://ollama:13666
+    networks:
+      - shared-network
+      - app-network
+
+  ollama:
+    build:
+      context: ./ollama
+    environment:
+      OLLAMA_HOST: 0.0.0.0:13666
+    ports:
+      - "127.0.0.1:13666:13666"
+    volumes:
+      - ./ollama/.ollama/:/root/.ollama/
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+  shared-network:
+    external: true

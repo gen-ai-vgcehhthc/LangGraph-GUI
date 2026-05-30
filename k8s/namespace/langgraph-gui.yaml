@@ -1,0 +1,5 @@
+# namespace/langgraph-gui.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: langgraph-gui

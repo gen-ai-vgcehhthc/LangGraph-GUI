@@ -1,0 +1,29 @@
+# Local development compose — works on Windows without GPU or Nginx.
+# Usage: docker compose -f docker-compose-dev.yml up --build
+services:
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend/src:/app/src
+    networks:
+      - dev-net
+    command: npm run dev -- --host
+
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend/src:/app/src
+    environment:
+      - BACKEND_PORT=5000
+    networks:
+      - dev-net
+
+networks:
+  dev-net:
+    driver: bridge

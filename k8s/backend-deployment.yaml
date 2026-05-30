@@ -1,0 +1,35 @@
+# backend-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-deployment
+  namespace: langgraph-gui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+      - name: backend
+        image: 127.0.0.1:7000/langgraph-gui-backend:latest
+        imagePullPolicy: Always  # Always or IfNotPresent if pushing to a registry
+        ports:
+        - containerPort: 5000
+        env:
+          - name: BACKEND_PORT
+            value: "5000"
+          - name: OLLAMA_BASE_URL
+            value: "http://ollama:13666"
+        volumeMounts:
+        - name: backend-src
+          mountPath: /app/src/
+      volumes:
+      - name: backend-src
+        hostPath:
+          path: <path>/LangGraph-GUI/backend/src/ # ABSOLUTE PATH HERE
+          type: DirectoryOrCreate

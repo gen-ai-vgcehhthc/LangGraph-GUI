@@ -1,0 +1,31 @@
+# frontend-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-deployment
+  namespace: langgraph-gui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: 127.0.0.1:7000/langgraph-gui-frontend:latest
+        imagePullPolicy: Always  # Add this line
+        ports:
+        - containerPort: 3000
+
+        volumeMounts:
+        - name: frontend-src
+          mountPath: /app/src/
+      volumes:
+      - name: frontend-src
+        hostPath:
+          path: <folder>/LangGraph-GUI/frontend/src/ # ABSOLUTE PATH HERE
+          type: DirectoryOrCreate
