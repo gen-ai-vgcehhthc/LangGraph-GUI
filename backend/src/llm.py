@@ -22,11 +22,11 @@ def clip_history(history: str, max_chars: int = 16000) -> str:
 def get_llm(llm_model, api_key):
 
     # openai case
-    if "gpt" in llm_model.lower():  # If the llm contains 'gpt', use ChatOpenAI
-        from langchain_community.chat_models import ChatOpenAI
+    if "gpt" in llm_model.lower() or "o1" in llm_model.lower() or "o3" in llm_model.lower():
+        from langchain_openai import ChatOpenAI
         os.environ["OPENAI_API_KEY"] = api_key
-        llm = ChatOpenAI(temperature=0, model="gpt-4o-mini").bind(response_format={"type": "json_object"})
-        logger("Using gpt-4o-mini")
+        llm = ChatOpenAI(temperature=0, model=llm_model, api_key=api_key).bind(response_format={"type": "json_object"})
+        logger(f"Using OpenAI model: {llm_model}")
 
         return llm
     # cannot work now, need langchain fix error
