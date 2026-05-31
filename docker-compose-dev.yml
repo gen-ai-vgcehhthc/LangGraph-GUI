@@ -1,7 +1,7 @@
-# Local development compose — works on Windows without GPU or Nginx.
+# Local development compose — OpenAI only, no GPU, no Nginx.
 # Usage: docker compose -f docker-compose-dev.yml up --build
 #
-# Frontend: http://localhost:3000  (Vite HMR dev server)
+# Frontend: http://localhost:3000
 # Backend:  http://localhost:5000
 services:
   frontend:
@@ -10,13 +10,10 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      # live-reload: mount source into the container
       - ./frontend/src:/app/src
-      # keep node_modules from the image (don't overwrite with host)
       - /app/node_modules
     networks:
       - dev-net
-    # Override the production CMD with the Vite dev server
     command: npm run dev
 
   backend:
@@ -28,9 +25,6 @@ services:
       - ./backend/src:/app/src
     environment:
       - BACKEND_PORT=5000
-      # host.docker.internal resolves to the Windows host from inside a Docker container.
-      # This lets the backend reach a natively-installed Ollama (http://localhost:11434 on Windows).
-      - OLLAMA_BASE_URL=http://host.docker.internal:11434
     networks:
       - dev-net
 
