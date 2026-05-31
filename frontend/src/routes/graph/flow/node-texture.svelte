@@ -9,17 +9,18 @@
 	import { llmProvider, llmModel, apiKey } from '../menu/menu.store';
 	import { runningNodeIds, nodeOutputs, viewingNodeId } from './run-state.store';
 	import { get } from 'svelte/store';
+	import { untrack } from 'svelte';
 
 	let { id, data, selected, width, height }: NodeProps = $props();
 	const { updateNodeData } = useSvelteFlow();
 
 	// ── description (local editable copy) ──────────────────────────────
-	let localDescription = $state(data.description);
+	let localDescription = $state(untrack(() => data.description));
 
 	// ── CrewAI config ───────────────────────────────────────────────────
-	let crewMaxTokens = $state(data.crew_config?.max_tokens ?? 4096);
-	let crewMaxApiCalls = $state(data.crew_config?.max_api_calls ?? 10);
-	let crewProcess = $state(data.crew_config?.process ?? 'sequential');
+	let crewMaxTokens = $state(untrack(() => data.crew_config?.max_tokens ?? 4096));
+	let crewMaxApiCalls = $state(untrack(() => data.crew_config?.max_api_calls ?? 10));
+	let crewProcess = $state(untrack(() => data.crew_config?.process ?? 'sequential'));
 
 	function saveCrewConfig() {
 		updateNodeData(id, {
@@ -40,9 +41,9 @@
 		return cfg.provider === 'openai' ? 'openai' : 'ollama';
 	}
 
-	let llmMode = $state<LLMMode>(modeFromConfig(data.llm_config));
-	let nodeLLMModel = $state(data.llm_config?.model ?? '');
-	let nodeLLMKey = $state(data.llm_config?.api_key ?? '');
+	let llmMode = $state<LLMMode>(untrack(() => modeFromConfig(data.llm_config)));
+	let nodeLLMModel = $state(untrack(() => data.llm_config?.model ?? ''));
+	let nodeLLMKey = $state(untrack(() => data.llm_config?.api_key ?? ''));
 
 	function saveLLMConfig() {
 		if (llmMode === 'default') {
@@ -71,7 +72,7 @@
 </script>
 
 <div
-	class="relative rounded-md border p-2.5 text-center transition-colors duration-300
+	class="relative flex flex-col overflow-hidden rounded-md border p-2.5 text-center transition-colors duration-300
 		{isRunning
 			? 'animate-pulse border-yellow-400 bg-yellow-100 shadow-lg shadow-yellow-300'
 			: 'border-gray-300 bg-gray-200'}"
@@ -83,7 +84,7 @@
 
 	<!-- NAME INPUT -->
 	{#if data.type !== NodeType.START && data.type !== NodeType.TOOL}
-		<div class="mt-2 flex items-center space-x-2">
+		<div class="mt-2 flex shrink-0 items-center space-x-2">
 			<label for="node-name-{id}" class="text-left text-sm text-gray-700">Name:</label>
 			<input
 				id="node-name-{id}"
@@ -99,7 +100,7 @@
 	{/if}
 
 	<!-- TYPE DROPDOWN -->
-	<div class="mt-2 flex items-center space-x-2">
+	<div class="mt-2 flex shrink-0 items-center space-x-2">
 		<label for="node-type-{id}" class="text-sm text-gray-700">Type:</label>
 		<select
 			id="node-type-{id}"
@@ -118,7 +119,7 @@
 
 	<!-- TOOL INPUT (STEP only) -->
 	{#if data.type === NodeType.STEP}
-		<div class="mt-2 flex items-center space-x-2">
+		<div class="mt-2 flex shrink-0 items-center space-x-2">
 			<label for="tool-input-{id}" class="text-left text-sm text-gray-700">Tool:</label>
 			<input
 				id="tool-input-{id}"
@@ -135,7 +136,7 @@
 
 	<!-- INPUT NODE hint -->
 	{#if data.type === NodeType.INPUT}
-		<div class="mt-2 rounded border border-cyan-300 bg-cyan-50 p-2 text-left text-xs">
+		<div class="mt-2 shrink-0 rounded border border-cyan-300 bg-cyan-50 p-2 text-left text-xs">
 			<div class="font-semibold text-cyan-700">💬 User Input Node</div>
 			<div class="text-gray-500">The description is shown to the user as a prompt at runtime.</div>
 		</div>
@@ -143,7 +144,7 @@
 
 	<!-- CREWAI CONFIG -->
 	{#if data.type === NodeType.CREWAI}
-		<div class="mt-2 space-y-1 rounded border border-purple-300 bg-purple-50 p-2 text-left text-xs">
+		<div class="mt-2 shrink-0 space-y-1 rounded border border-purple-300 bg-purple-50 p-2 text-left text-xs">
 			<div class="font-semibold text-purple-700">CrewAI Settings</div>
 			<div class="flex items-center space-x-2">
 				<label for="crew-tokens-{id}" class="w-28 shrink-0 text-gray-600">Max Tokens:</label>
@@ -190,7 +191,7 @@
 
 	<!-- AGENT hint -->
 	{#if data.type === NodeType.AGENT}
-		<div class="mt-2 rounded border border-blue-300 bg-blue-50 p-1 text-left text-xs">
+		<div class="mt-2 shrink-0 rounded border border-blue-300 bg-blue-50 p-1 text-left text-xs">
 			<div class="font-semibold text-blue-700">Agent — paste JSON in description:</div>
 			<div class="font-mono text-gray-500">{"{"}"role":"…","goal":"…","backstory":"…"&#125;</div>
 		</div>
@@ -198,7 +199,7 @@
 
 	<!-- DESCRIPTION (all except START, SUBGRAPH, CREWAI) -->
 	{#if data.type !== NodeType.START && data.type !== NodeType.SUBGRAPH && data.type !== NodeType.CREWAI}
-		<div class="mt-2 flex h-[calc(100%-220px)] min-h-[60px] flex-grow flex-col">
+		<div class="mt-2 flex min-h-0 flex-1 flex-col">
 			<label for="node-description-{id}" class="mb-1 block text-left text-sm text-gray-700">
 				{data.type === NodeType.AGENT ? 'Agent JSON:' : data.type === NodeType.INPUT ? 'Prompt shown to user:' : 'Description:'}
 			</label>
@@ -213,7 +214,7 @@
 
 	<!-- CREWAI task description -->
 	{#if data.type === NodeType.CREWAI}
-		<div class="mt-2 flex h-[calc(100%-330px)] min-h-[40px] flex-grow flex-col">
+		<div class="mt-2 flex min-h-0 flex-1 flex-col">
 			<label for="crew-desc-{id}" class="mb-1 block text-left text-sm text-gray-700">
 				Crew Task:
 			</label>
@@ -228,7 +229,7 @@
 
 	<!-- PER-NODE LLM SELECTOR (all nodes that execute LLM) -->
 	{#if data.type !== NodeType.START && data.type !== NodeType.INFO && data.type !== NodeType.SUBGRAPH && data.type !== NodeType.INPUT}
-		<div class="mt-2 rounded border border-gray-300 bg-white px-2 py-1.5 text-xs">
+		<div class="mt-2 shrink-0 rounded border border-gray-300 bg-white px-2 py-1.5 text-xs">
 			<div class="flex items-center space-x-1">
 				<span class="shrink-0 font-medium text-gray-500">LLM:</span>
 				<select
@@ -272,7 +273,7 @@
 	<!-- "View" button — shown after a run when this node has recorded output -->
 	{#if hasOutput}
 		<button
-			class="mt-1.5 w-full rounded border border-indigo-200 bg-indigo-50 py-1 text-xs
+			class="mt-1.5 w-full shrink-0 rounded border border-indigo-200 bg-indigo-50 py-1 text-xs
 			       font-semibold text-indigo-700 hover:bg-indigo-100 active:bg-indigo-200"
 			onclick={() => viewingNodeId.set(id)}
 		>
