@@ -189,6 +189,15 @@
 		</div>
 	{/if}
 
+	<!-- TOOL node hint -->
+	{#if data.type === NodeType.TOOL}
+		<div class="mt-2 shrink-0 rounded border border-emerald-300 bg-emerald-50 p-2 text-left text-xs">
+			<div class="font-semibold text-emerald-700">🔧 Tool Node — write Python here</div>
+			<div class="mt-0.5 font-mono text-gray-500">def my_func(arg1, arg2):<br>&nbsp;&nbsp;&nbsp;&nbsp;"""docstring"""<br>&nbsp;&nbsp;&nbsp;&nbsp;return result</div>
+			<div class="mt-1 text-gray-500">Set the function name in a STEP node's <span class="font-semibold">Tool</span> field.</div>
+		</div>
+	{/if}
+
 	<!-- AGENT hint -->
 	{#if data.type === NodeType.AGENT}
 		<div class="mt-2 shrink-0 rounded border border-blue-300 bg-blue-50 p-1 text-left text-xs">
@@ -201,11 +210,12 @@
 	{#if data.type !== NodeType.START && data.type !== NodeType.SUBGRAPH && data.type !== NodeType.CREWAI}
 		<div class="mt-2 flex min-h-0 flex-1 flex-col">
 			<label for="node-description-{id}" class="mb-1 block text-left text-sm text-gray-700">
-				{data.type === NodeType.AGENT ? 'Agent JSON:' : data.type === NodeType.INPUT ? 'Prompt shown to user:' : 'Description:'}
+				{data.type === NodeType.AGENT ? 'Agent JSON:' : data.type === NodeType.INPUT ? 'Prompt shown to user:' : data.type === NodeType.TOOL ? 'Python code:' : 'Description:'}
 			</label>
 			<textarea
 				id="node-description-{id}"
-				class="h-full w-full flex-grow resize-none overflow-y-auto rounded border border-gray-300 bg-white p-1 text-sm focus:outline-none"
+				class="h-full w-full flex-grow resize-none overflow-y-auto rounded border border-gray-300 bg-white p-1 text-sm focus:outline-none
+					{data.type === NodeType.TOOL ? 'font-mono text-xs leading-relaxed' : ''}"
 				bind:value={localDescription}
 				onblur={() => updateNodeData(id, { description: localDescription })}
 			></textarea>

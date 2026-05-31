@@ -67,7 +67,7 @@ def execute_step(name:str, state: PipelineState, prompt_template: str, llm) -> P
     state["history"] = clip_history(state["history"])
 
     generation = create_llm_chain(prompt_template, llm, state["history"])
-    data = json.loads(generation)
+    data = json.loads(_extract_json(generation))
     
     state["history"] += "\n" + json.dumps(data)
     state["history"] = clip_history(state["history"])
@@ -75,16 +75,51 @@ def execute_step(name:str, state: PipelineState, prompt_template: str, llm) -> P
     logger(state["history"])
     return state
 
+def _extract_json(text: str) -> str:
+    """Strip markdown code fences and stray control chars from an LLM response,
+    then return the first complete JSON object or array found."""
+    # Remove NUL and other non-printable chars but KEEP whitespace (\t \n \r)
+    t = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', text).strip()
+    # Strip opening ```json / ``` fence
+    t = re.sub(r'^```[a-zA-Z]*\s*', '', t)
+    # Strip closing ``` fence
+    t = re.sub(r'\s*```\s*$', '', t)
+    t = t.strip()
+    # Bracket-depth scan: extract first complete JSON object or array
+    for start, end in [('{', '}'), ('[', ']')]:
+        idx = t.find(start)
+        if idx == -1:
+            continue
+        depth = 0
+        in_str = False
+        esc = False
+        for i, ch in enumerate(t[idx:], idx):
+            if esc:
+                esc = False; continue
+            if ch == '\\' and in_str:
+                esc = True; continue
+            if ch == '"':
+                in_str = not in_str; continue
+            if in_str:
+                continue
+            if ch == start:
+                depth += 1
+            elif ch == end:
+                depth -= 1
+                if depth == 0:
+                    return t[idx:i + 1]
+    return t  # fallback: return cleaned text as-is
+
+
 def execute_tool(name: str, state: PipelineState, prompt_template: str, llm) -> PipelineState:
 
     logger(f"{name} is working...")
 
     state["history"] = clip_history(state["history"])
-    
+
     generation = create_llm_chain(prompt_template, llm, state["history"])
 
-    # Sanitize the generation output by removing invalid control characters
-    sanitized_generation = re.sub(r'[\x00-\x1F\x7F]', '', generation)
+    sanitized_generation = _extract_json(generation)
 
     logger(sanitized_generation)
 
@@ -325,7 +360,11 @@ def build_subgraph(node_map: Dict[str, NodeData], llm, graphs_data: List[Any] = 
         node_llm = get_node_llm(current_node.llm_config, llm, llm_model, api_key)
         desc = escape_braces(current_node.description)
         if current_node.tool:
-            tool_info = escape_braces(tool_info_registry[current_node.tool])
+            raw_tool_info = tool_info_registry.get(
+                current_node.tool,
+                f"{current_node.tool}() - (no description found; check TOOL node)"
+            )
+            tool_info = escape_braces(raw_tool_info)
             prompt_template = (
                 "history: {history}\n"
                 + desc + "\n"
@@ -492,11 +531,25 @@ def run_workflow_as_server(llm, llm_model: str = "", api_key: str = ""):
 
         # Register the tool functions dynamically if has tool node, must before build graph
         for tool_node in find_nodes_by_type(node_map, "TOOL"):
-            tool_code = f"{tool_node.description}"
-            exec(tool_code, globals())
-            # Map every top-level function defined in this TOOL node to its node ID
-            # so execute_tool() can emit highlight markers when the function runs.
+            tool_code = tool_node.description
+            try:
+                exec(tool_code, globals())
+            except Exception as exc:
+                logger(f"TOOL node '{tool_node.name}' exec failed: {exc}")
+                continue
+            # Auto-register every top-level function defined in the TOOL code.
+            # Users don't need to use the @tool decorator — any plain def works.
             for fn_name in re.findall(r'^def\s+(\w+)', tool_code, re.MULTILINE):
+                fn = globals().get(fn_name)
+                if not callable(fn):
+                    continue
+                if fn_name not in tool_registry:
+                    # Register so execute_tool() can find it
+                    tool_registry[fn_name] = fn
+                    sig = inspect.signature(fn)
+                    doc = (fn.__doc__ or "").strip()
+                    tool_info_registry[fn_name] = f"{fn_name}{sig} - {doc}"
+                # Map to node ID for highlight markers
                 tool_node_id_registry[fn_name] = tool_node.uniq_id
 
         subgraph = build_subgraph(node_map, llm, graphs_data=graphs_data, llm_model=llm_model, api_key=api_key)
