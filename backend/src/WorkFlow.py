@@ -17,6 +17,8 @@ from util import logger
 # Tool registry to hold information about tools
 tool_registry: Dict[str, Callable] = {}
 tool_info_registry: Dict[str, str] = {}
+# Maps function name → TOOL node uniq_id so execute_tool can highlight the node
+tool_node_id_registry: Dict[str, str] = {}
 
 # Subgraph registry to hold all the subgraph
 subgraph_registry: Dict[str, Any] = {}
@@ -94,8 +96,16 @@ def execute_tool(name: str, state: PipelineState, prompt_template: str, llm) -> 
     
     if tool_name not in tool_registry:
         raise ValueError(f"Tool {tool_name} not found in registry.")
-    
+
+    # Highlight the TOOL node while its function is executing
+    tool_node_id = tool_node_id_registry.get(tool_name)
+    if tool_node_id:
+        logger(f"__NODE_START__{tool_node_id}__")
+
     result = tool_registry[tool_name](*args)
+
+    if tool_node_id:
+        logger(f"__NODE_END__{tool_node_id}__")
 
     # Flatten args to a string
     flattened_args = ', '.join(map(str, args))
@@ -462,6 +472,12 @@ def invoke_root(state: MainGraphState):
 
 
 def run_workflow_as_server(llm, llm_model: str = "", api_key: str = ""):
+    # Clear registries so stale entries from a previous run don't linger
+    tool_registry.clear()
+    tool_info_registry.clear()
+    tool_node_id_registry.clear()
+    subgraph_registry.clear()
+
     # Load subgraph data
     with open("workflow.json", 'r') as file:
         graphs_data = json.load(file)
@@ -478,6 +494,10 @@ def run_workflow_as_server(llm, llm_model: str = "", api_key: str = ""):
         for tool_node in find_nodes_by_type(node_map, "TOOL"):
             tool_code = f"{tool_node.description}"
             exec(tool_code, globals())
+            # Map every top-level function defined in this TOOL node to its node ID
+            # so execute_tool() can emit highlight markers when the function runs.
+            for fn_name in re.findall(r'^def\s+(\w+)', tool_code, re.MULTILINE):
+                tool_node_id_registry[fn_name] = tool_node.uniq_id
 
         subgraph = build_subgraph(node_map, llm, graphs_data=graphs_data, llm_model=llm_model, api_key=api_key)
         subgraph_registry[subgraph_name] = subgraph
