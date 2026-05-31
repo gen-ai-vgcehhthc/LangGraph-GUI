@@ -3,7 +3,7 @@ FROM nvidia/cuda:12.2.0-base-ubuntu22.04
 
 # Install curl and other dependencies
 RUN apt-get update && apt-get install -y \
-    curl \
+    curl zstd \
     && rm -rf /var/lib/apt/lists/*
 
 # Install ollama
