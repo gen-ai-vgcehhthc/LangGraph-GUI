@@ -1,16 +1,9 @@
-# ollama/Dockerfile
-FROM nvidia/cuda:12.2.0-base-ubuntu22.04
+# Use the official pre-built Ollama image.
+# The old approach (curl install.sh inside nvidia/cuda) fails in many
+# Docker build environments because the script detects it's not on a real
+# Linux system or cannot reach the network during build.
+FROM ollama/ollama:latest
 
-# Install curl and other dependencies
-RUN apt-get update && apt-get install -y \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install ollama
-RUN curl -fsSL https://ollama.com/install.sh | sh
-
-# Expose the port ollama will use
-# EXPOSE 11434
-
-# Final command to start the ollama server
-CMD ["ollama", "serve"]
+# ollama/ollama already has the binary; just expose the port and serve.
+EXPOSE 11434
+CMD ["serve"]
