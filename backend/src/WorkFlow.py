@@ -359,10 +359,23 @@ def build_subgraph(node_map: Dict[str, NodeData], llm, graphs_data: List[Any] = 
     for current_node in step_nodes:
         node_llm = get_node_llm(current_node.llm_config, llm, llm_model, api_key)
         desc = escape_braces(current_node.description)
-        if current_node.tool:
+
+        # Resolve which tool (if any) this STEP node should call.
+        # Explicit 'tool' field takes priority; if blank, auto-detect by
+        # scanning the description for any registered function name so users
+        # can just mention the tool naturally without setting the field.
+        resolved_tool = current_node.tool or ""
+        if not resolved_tool and tool_registry:
+            for fn_name in tool_registry:
+                if fn_name in current_node.description:
+                    resolved_tool = fn_name
+                    logger(f"Auto-detected tool '{fn_name}' for STEP node '{current_node.name}'")
+                    break
+
+        if resolved_tool:
             raw_tool_info = tool_info_registry.get(
-                current_node.tool,
-                f"{current_node.tool}() - (no description found; check TOOL node)"
+                resolved_tool,
+                f"{resolved_tool}() - (no description found; check TOOL node)"
             )
             tool_info = escape_braces(raw_tool_info)
             prompt_template = (
