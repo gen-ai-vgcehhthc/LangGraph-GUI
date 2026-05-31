@@ -7,16 +7,12 @@ import { svelteTesting } from '@testing-library/svelte/vite';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 
-const backendUrls = {
-	development: 'http://localhost:5000',
-	production: 'http://yourdomain.com'
-} as const;
-
-type BackendUrlMode = keyof typeof backendUrls;
-
-export default defineConfig(({ mode }) => {
-	const safeMode = mode as BackendUrlMode;
-	const backendUrl = backendUrls[safeMode] || backendUrls.production;
+export default defineConfig(() => {
+	// Leave empty by default so the client derives the backend URL from the
+	// page's own host at runtime (see src/lib/backend.ts). This is what makes
+	// remote access work without hard-coding an IP. Set VITE_BACKEND_URL in the
+	// environment only when you need to force a specific backend origin.
+	const backendUrl = process.env.VITE_BACKEND_URL ?? '';
 
 	return {
 		plugins: [tailwindcss(), sveltekit()],
@@ -26,11 +22,9 @@ export default defineConfig(({ mode }) => {
 		server: {
 			host: '0.0.0.0',
 			port: 3000,
-            allowedHosts: [
-                'localhost',
-                '127.0.0.1',
-                'yourdomain.com',
-            ],
+			// Allow any Host header so the dev server is reachable via a remote
+			// machine's IP or hostname, not just localhost.
+			allowedHosts: true,
 		},
 		define: {
 			'import.meta.env.VITE_BACKEND_URL': JSON.stringify(backendUrl)

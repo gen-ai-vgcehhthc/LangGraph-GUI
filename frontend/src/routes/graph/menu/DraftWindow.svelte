@@ -5,10 +5,11 @@
 	import { username, llmModel, apiKey } from './menu.store';
 	import { JsonToGraphs } from '../flow/graphs-algo.svelte';
 	import { graphs, serial_number, usingSubgraph } from '../flow/graphs.store.svelte';
+	import { backendUrl } from '$lib/backend';
 
 	let { open = $bindable(false) } = $props();
 
-	const SERVER_URL = import.meta.env.VITE_BACKEND_URL;
+	const SERVER_URL = backendUrl();
 
 	let prompt = $state('');
 	let isGenerating = $state(false);

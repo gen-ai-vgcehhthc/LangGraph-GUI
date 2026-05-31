@@ -5,6 +5,7 @@ import { get } from 'svelte/store';
 import { username, llmModel, apiKey } from '../menu/menu.store';
 import { graphs } from './graphs.store.svelte';
 import { GraphsToJson } from '$lib/util/serialization';
+import { backendUrl } from '$lib/backend';
 import {
 	markNodeRunning,
 	markNodeDone,
@@ -16,7 +17,7 @@ import {
 	nodeOutputs
 } from './run-state.store';
 
-const SERVER_URL = import.meta.env.VITE_BACKEND_URL;
+const SERVER_URL = backendUrl();
 
 // ── SSE line cleaning ─────────────────────────────────────────────────────────
 // ProcessHandler prefixes every stdout line with "STDOUT: ".

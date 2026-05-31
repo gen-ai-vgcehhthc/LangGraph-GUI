@@ -3,8 +3,9 @@
 	import { get } from 'svelte/store';
 	import { inputRequest } from '../flow/run-state.store';
 	import { username } from './menu.store';
+	import { backendUrl } from '$lib/backend';
 
-	const SERVER_URL = import.meta.env.VITE_BACKEND_URL;
+	const SERVER_URL = backendUrl();
 
 	let userText = $state('');
 	let submitting = $state(false);

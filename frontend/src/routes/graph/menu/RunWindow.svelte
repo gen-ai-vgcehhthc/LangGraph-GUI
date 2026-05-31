@@ -6,8 +6,9 @@
 	import type { ExportedGraph } from '../flow/graphs-algo.svelte';
 	import { GraphsToJson } from '../flow/graphs-algo.svelte';
 	import { markNodeRunning, markNodeDone, clearRunningNodes } from '../flow/run-state.store';
+	import { backendUrl } from '$lib/backend';
 
-	const SERVER_URL = import.meta.env.VITE_BACKEND_URL;
+	const SERVER_URL = backendUrl();
 
 	// Markers the backend embeds in its log stream
 	const NODE_START_RE = /__NODE_START__(.+?)__/g;
