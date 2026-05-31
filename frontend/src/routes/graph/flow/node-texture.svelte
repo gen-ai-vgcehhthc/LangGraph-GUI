@@ -72,7 +72,7 @@
 </script>
 
 <div
-	class="relative flex flex-col overflow-hidden rounded-md border p-2.5 text-center transition-colors duration-300
+	class="relative flex flex-col overflow-visible rounded-md border p-2.5 text-center transition-colors duration-300
 		{isRunning
 			? 'animate-pulse border-yellow-400 bg-yellow-100 shadow-lg shadow-yellow-300'
 			: 'border-gray-300 bg-gray-200'}"
