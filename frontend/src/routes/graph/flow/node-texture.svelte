@@ -227,8 +227,8 @@
 		</div>
 	{/if}
 
-	<!-- PER-NODE LLM SELECTOR (all nodes that execute LLM) -->
-	{#if data.type !== NodeType.START && data.type !== NodeType.INFO && data.type !== NodeType.SUBGRAPH && data.type !== NodeType.INPUT}
+	<!-- PER-NODE LLM SELECTOR (all nodes that execute LLM — TOOL nodes run plain Python, no LLM) -->
+	{#if data.type !== NodeType.START && data.type !== NodeType.INFO && data.type !== NodeType.SUBGRAPH && data.type !== NodeType.INPUT && data.type !== NodeType.TOOL}
 		<div class="mt-2 shrink-0 rounded border border-gray-300 bg-white px-2 py-1.5 text-xs">
 			<div class="flex items-center space-x-1">
 				<span class="shrink-0 font-medium text-gray-500">LLM:</span>
