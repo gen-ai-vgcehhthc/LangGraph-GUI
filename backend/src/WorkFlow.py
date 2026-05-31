@@ -49,6 +49,12 @@ def find_nodes_by_type(node_map: Dict[str, NodeData], node_type: str) -> List[No
     return [node for node in node_map.values() if node.type == node_type]
 
 
+def escape_braces(text: str) -> str:
+    """Escape { and } in user-provided text so PromptTemplate doesn't treat
+    them as template variables (e.g. {"switch": true} in a description)."""
+    return text.replace("{", "{{").replace("}", "}}")
+
+
 class PipelineState(TypedDict):
     history: Annotated[str, operator.add]
     task: Annotated[str, operator.add]
@@ -307,28 +313,28 @@ def build_subgraph(node_map: Dict[str, NodeData], llm, graphs_data: List[Any] = 
     step_nodes = find_nodes_by_type(node_map, "STEP")
     for current_node in step_nodes:
         node_llm = get_node_llm(current_node.llm_config, llm, llm_model, api_key)
+        desc = escape_braces(current_node.description)
         if current_node.tool:
-            tool_info = tool_info_registry[current_node.tool]
-            prompt_template = f"""
-            history: {{history}}
-            {current_node.description}
-            Available tool: {tool_info}
-            Based on Available tool, arguments in the json format:
-            "function": "<func_name>", "args": [<arg1>, <arg2>, ...]
-
-            next stage directly parse then run <func_name>(<arg1>,<arg2>, ...) make sure syntax is right json and align function siganture
-            """
+            tool_info = escape_braces(tool_info_registry[current_node.tool])
+            prompt_template = (
+                "history: {history}\n"
+                + desc + "\n"
+                + "Available tool: " + tool_info + "\n"
+                + "Based on the Available tool, provide arguments in JSON:\n"
+                + '{{"function": "<func_name>", "args": [<arg1>, <arg2>, ...]}}\n'
+                + "Make sure syntax is valid JSON and aligns with the function signature."
+            )
             subgraph.add_node(
                 current_node.uniq_id,
                 with_markers(current_node.uniq_id,
                     lambda state, template=prompt_template, node_llm=node_llm, name=current_node.name: execute_tool(name, state, template, node_llm))
             )
         else:
-            prompt_template = f"""
-            history: {{history}}
-            {current_node.description}
-            you reply in the json format
-            """
+            prompt_template = (
+                "history: {history}\n"
+                + desc + "\n"
+                + "Reply in JSON format."
+            )
             subgraph.add_node(
                 current_node.uniq_id,
                 with_markers(current_node.uniq_id,
@@ -404,10 +410,13 @@ def build_subgraph(node_map: Dict[str, NodeData], llm, graphs_data: List[Any] = 
     condition_nodes = find_nodes_by_type(node_map, "CONDITION")
     for condition in condition_nodes:
         node_llm = get_node_llm(condition.llm_config, llm, llm_model, api_key)
-        condition_template = f"""{condition.description}
-        history: {{history}}, decide the condition result in the json format:
-        "switch": True/False
-        """
+        desc = escape_braces(condition.description)
+        condition_template = (
+            desc + "\n"
+            + "history: {history}\n"
+            + "Decide the condition result and output ONLY this JSON (true or false):\n"
+            + '{{"switch": true}}'
+        )
         subgraph.add_node(
             condition.uniq_id,
             with_markers(condition.uniq_id,

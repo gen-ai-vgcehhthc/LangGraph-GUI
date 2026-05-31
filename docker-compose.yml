@@ -11,7 +11,7 @@ services:
       - /app/node_modules
       - ./frontend/.svelte-kit/:/app/.svelte-kit/
     networks:
-      - shared-network
+      - app-network
     command: npm run dev
 
   backend:
@@ -26,33 +26,33 @@ services:
       - ./backend/src/:/app/src/
     environment:
       - BACKEND_PORT=5000
-      - OLLAMA_BASE_URL=http://ollama:13666
+      - OLLAMA_BASE_URL=http://ollama:11434
     networks:
-      - shared-network
       - app-network
+    depends_on:
+      - ollama
 
   ollama:
     build:
       context: ./ollama
     environment:
-      OLLAMA_HOST: 0.0.0.0:13666
+      - OLLAMA_HOST=0.0.0.0:11434
     ports:
-      - "127.0.0.1:13666:13666"
+      - "127.0.0.1:11434:11434"
     volumes:
       - ./ollama/.ollama/:/root/.ollama/
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     networks:
       - app-network
+    # GPU support is optional — remove the 'deploy' block if you don't have
+    # an NVIDIA GPU or nvidia-container-toolkit installed on the host.
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
 
 networks:
   app-network:
     driver: bridge
-
-  shared-network:
-    external: true
