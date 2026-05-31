@@ -25,6 +25,16 @@ export default defineConfig(() => {
 			// Allow any Host header so the dev server is reachable via a remote
 			// machine's IP or hostname, not just localhost.
 			allowedHosts: true,
+			// Proxy backend calls through this same origin so only port 3000
+			// needs to be exposed remotely. Target defaults to the docker
+			// service name; override with BACKEND_PROXY_TARGET for bare-metal.
+			proxy: {
+				'/backend': {
+					target: process.env.BACKEND_PROXY_TARGET ?? 'http://backend:5000',
+					changeOrigin: true,
+					rewrite: (path) => path.replace(/^\/backend/, '')
+				}
+			},
 		},
 		define: {
 			'import.meta.env.VITE_BACKEND_URL': JSON.stringify(backendUrl)

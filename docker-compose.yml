@@ -17,8 +17,11 @@ services:
   backend:
     build:
       context: ./backend
+    # Reached by the frontend over the internal network (backend:5000) and
+    # proxied to the browser via /backend, so no public host port is needed.
+    # Bound to loopback only for local debugging.
     ports:
-      - "0.0.0.0:5000:5000"
+      - "127.0.0.1:5000:5000"
     volumes:
       - ./backend/src/:/app/src/
     environment:
